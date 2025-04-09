@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Persona Linker</title>
+  <style>
+    /* ... existing styles ... */
+    #linkedPersonaDisplay ul {
+      padding-left: 20px;
+    }
+
+    #linkedPersonaDisplay li {
+      margin-bottom: 4px;
+    }
+
+    #linkedPersonaDisplay button {
+      margin-left: 8px;
+      background: #d32f2f;
+      color: #fff;
+      border: none;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Manage Personas</h2>
+  <div id="addPersona">
+    <input type="text" id="newPersonaName" placeholder="Name" />
+    <input type="text" id="newPersonaEmoji" placeholder="Emoji (optional)" />
+    <button id="addPersonaBtn">Add Persona</button>
+  </div>
+  <h3>Existing Personas</h3>
+  <div id="personaList"></div>
+  <hr />
+  <h2>Link Persona to Selected Frame(s)</h2>
+  <!-- Updated linked persona display: will show list with unlink buttons -->
+  <div id="linkedPersonaDisplay">Linked Persona: None</div>
+  <!-- Removed the single Unlink Persona button -->
+  <!-- Toggle Tagged Frame Highlights Button -->
+  <button id="toggleHighlightsBtn">Toggle Tagged Frame Highlights</button>
+
+  <script>
+    let personas = [];
+
+    function renderPersonaList() {
+      const listEl = document.getElementById('personaList');
+      listEl.innerHTML = '';
+      personas.forEach((persona, index) => {
+        const personaDiv = document.createElement('div');
+        personaDiv.className = 'persona-item';
+        personaDiv.dataset.index = index;
+        personaDiv.innerHTML = `
+            <span class="persona-text">${persona.emoji ? persona.emoji + ' ' : ''}${persona.name}</span>
+            <button class="linkPersonaBtn">Link</button>
+            <button class="editPersonaBtn">Edit</button>
+            <button class="deletePersonaBtn">Delete</button>
+            <div class="editForm" style="display:none;">
+              <input type="text" class="editName" placeholder="Name" value="${persona.name}" />
+              <input type="text" class="editEmoji" placeholder="Emoji (optional)" value="${persona.emoji || ''}" />
+              <button class="saveEditBtn">Save</button>
+              <button class="cancelEditBtn">Cancel</button>
+            </div>
+          `;
+        listEl.appendChild(personaDiv);
+      });
+      document.querySelectorAll('.linkPersonaBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const index = e.target.parentElement.dataset.index;
+          const persona = personas[index];
+          const personaStr = (persona.emoji ? persona.emoji + ' ' : '') + persona.name;
+          parent.postMessage({ pluginMessage: { type: 'link-persona', persona: personaStr, personaData: persona } }, '*');
+        });
+      });
+      document.querySelectorAll('.deletePersonaBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const index = e.target.parentElement.dataset.index;
+          personas.splice(index, 1);
+          updatePersonas();
+        });
+      });
+      document.querySelectorAll('.editPersonaBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const editForm = e.target.parentElement.querySelector('.editForm');
+          editForm.style.display = 'block';
+        });
+      });
+      document.querySelectorAll('.cancelEditBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const editForm = e.target.parentElement;
+          editForm.style.display = 'none';
+        });
+      });
+      document.querySelectorAll('.saveEditBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const personaDiv = e.target.closest('.persona-item');
+          const index = personaDiv.dataset.index;
+          const newName = personaDiv.querySelector('.editName').value.trim();
+          const newEmoji = personaDiv.querySelector('.editEmoji').value.trim();
+          if (newName === '') {
+            alert('Name cannot be empty.');
+            return;
+          }
+          personas[index] = { name: newName, emoji: newEmoji };
+          updatePersonas();
+        });
+      });
+    }
+
+    function updatePersonas() {
+      parent.postMessage({ pluginMessage: { type: 'update-personas', personas: personas } }, '*');
+      renderPersonaList();
+    }
+
+    document.getElementById('addPersonaBtn').addEventListener('click', () => {
+      const nameInput = document.getElementById('newPersonaName');
+      const emojiInput = document.getElementById('newPersonaEmoji');
+      const name = nameInput.value.trim();
+      const emoji = emojiInput.value.trim();
+      if (name === '') {
+        alert("Name cannot be empty.");
+        return;
+      }
+      personas.push({ name: name, emoji: emoji });
+      nameInput.value = '';
+      emojiInput.value = '';
+      updatePersonas();
+    });
+
+    // Toggle Tagged Frame Highlights button.
+    document.getElementById('toggleHighlightsBtn').addEventListener('click', () => {
+      parent.postMessage({ pluginMessage: { type: 'toggle-tag-highlights' } }, '*');
+    });
+
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (msg.type === 'update-linked-persona') {
+        const display = document.getElementById('linkedPersonaDisplay');
+        display.innerHTML = ''; // Clear existing content
+        const linked = msg.personas;
+        if (!linked || linked.length === 0) {
+          display.textContent = "Linked Persona: None";
+        } else {
+          const list = document.createElement('ul');
+          linked.forEach(persona => {
+            const listItem = document.createElement('li');
+            listItem.textContent = persona + " ";
+            const unlinkBtn = document.createElement('button');
+            unlinkBtn.textContent = "Unlink";
+            unlinkBtn.addEventListener('click', () => {
+              parent.postMessage({ pluginMessage: { type: 'unlink-persona', persona: persona } }, '*');
+            });
+            listItem.appendChild(unlinkBtn);
+            list.appendChild(listItem);
+          });
+          display.appendChild(list);
+        }
+      } else if (msg.type === 'link-summary') {
+        const display = document.getElementById('linkedPersonaDisplay');
+        display.textContent = msg.summary;
+      } else if (msg.type === 'load-personas') {
+        personas = Array.isArray(msg.personas) ? msg.personas : [];
+        renderPersonaList();
+      } else if (msg.type === 'update-highlights') {
+        const btn = document.getElementById('toggleHighlightsBtn');
+        btn.textContent = msg.show ? "Hide Tagged Frame Highlights" : "Show Tagged Frame Highlights";
+      }
+    };
+  </script>
+</body>
+
+</html>
