@@ -1,5 +1,5 @@
-// Show the plugin UI with an updated size.
-figma.showUI(__html__, { width: 300, height: 550 });
+// Show the plugin UI with an updated size and allow resizing.
+figma.showUI(__html__, { width: 300, height: 600 });
 
 // Global state for showing tag highlights and the current target persona.
 let showTaggedHighlights = false;
@@ -23,13 +23,16 @@ function sendLinkedPersona() {
       }
     }
   }
-  // Send the linked personas array to the UI.
-  figma.ui.postMessage({ type: "update-linked-persona", personas: linkedPersonas });
+  const frameName =
+    selection.length === 1 && selection[0].type === "FRAME"
+      ? (selection[0] as FrameNode).name
+      : undefined;
+  // Send the linked personas array to the UI along with the frame name (if available).
+  figma.ui.postMessage({ type: "update-linked-persona", personas: linkedPersonas, frameName });
 }
 
 // Highlight frames that have been tagged with the current target persona.
 function highlightTaggedFrames() {
-  if (!currentTargetPersona) return;
   const frames = figma.currentPage.findAll(
     (node) => node.type === "FRAME"
   ) as FrameNode[];
@@ -43,7 +46,7 @@ function highlightTaggedFrames() {
         linkedList = [];
       }
     }
-    if (linkedList.indexOf(currentTargetPersona) !== -1) {
+    if (linkedList.length > 0) {
       frame.strokes = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 } }];
       frame.strokeWeight = 4;
     } else {
@@ -75,6 +78,8 @@ figma.on("selectionchange", () => {
 // Load shared personas on launch.
 let rawPersonas = figma.root.getSharedPluginData("persona_linker", "personas");
 let personas;
+// Add global state for storing the linked personas of the currently selected frame.
+let currentLinkedPersonas = null;
 try {
   personas = JSON.parse(rawPersonas || "[]");
 } catch (e) {
@@ -89,6 +94,7 @@ figma.ui.onmessage = async (msg: {
   persona?: string;
   personaData?: { name: string; emoji?: string };
   personas?: any[];
+  exportFormat?: string;
 }) => {
   if (msg.type === "link-persona") {
     // Allow linking multiple frames.
@@ -123,10 +129,10 @@ figma.ui.onmessage = async (msg: {
       figma.notify("No valid frames selected or persona already linked.");
       return;
     }
-    const summaryMsg = `${linkedCount} frame${linkedCount > 1 ? "s" : ""} linked to ${msg.persona
-      }`;
+    const summaryMsg = `${linkedCount} frame${linkedCount > 1 ? "s" : ""} linked to ${msg.persona}`;
     figma.notify(summaryMsg);
-    figma.ui.postMessage({ type: "link-summary", summary: summaryMsg });
+    // Update the linkedPersonaDisplay by sending the updated linked personas.
+    sendLinkedPersona();
     if (showTaggedHighlights) {
       highlightTaggedFrames();
     }
@@ -165,6 +171,7 @@ figma.ui.onmessage = async (msg: {
       node.setPluginData("persona", JSON.stringify(linkedList));
     }
     figma.notify(`Unlinked ${targetPersona} from the selected frame.`);
+    // Update the linkedPersonaDisplay with the updated list.
     sendLinkedPersona();
     if (showTaggedHighlights) {
       highlightTaggedFrames();
@@ -218,5 +225,43 @@ figma.ui.onmessage = async (msg: {
       cleanupHighlights();
     }
     figma.ui.postMessage({ type: "update-highlights", show: showTaggedHighlights });
+  } else if (msg.type === "export-linked-personas") {
+    const exportData: { frameName: string; frameId: string; personas: string[] }[] = [];
+    const allFrames = figma.currentPage.findAll((node) => node.type === "FRAME") as FrameNode[];
+    allFrames.forEach(frame => {
+      const data = frame.getPluginData("persona");
+      if (data && data !== "") {
+        let linkedList: string[] = [];
+        try {
+          linkedList = JSON.parse(data);
+        } catch (err) {
+          linkedList = [];
+        }
+        if (Array.isArray(linkedList) && linkedList.length > 0) {
+          exportData.push({
+            frameName: frame.name,
+            frameId: frame.id,
+            personas: linkedList
+          });
+        }
+      }
+    });
+
+    // Build CSV string
+    let csvData = "Frame Name,Frame Id,Personas\n";
+    exportData.forEach(item => {
+      csvData += `"${item.frameName}","${item.frameId}","${item.personas.join(';')}"\n`;
+    });
+
+    // Build JSON string
+    const jsonData = JSON.stringify(exportData, null, 2);
+
+    // Determine export format, default to JSON if not specified.
+    const exportFormat = msg.exportFormat || "json";
+    if (exportFormat === "csv") {
+      figma.ui.postMessage({ type: "export-linked-personas-data", data: csvData, exportFormat: "csv" });
+    } else {
+      figma.ui.postMessage({ type: "export-linked-personas-data", data: jsonData, exportFormat: "json" });
+    }
   }
 };
