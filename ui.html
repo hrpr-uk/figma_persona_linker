@@ -111,7 +111,10 @@
   <!-- Section 4: Actions -->
   <div class="section" id="section-actions">
     <h2 class="section-title">Actions</h2>
-    <button id="toggleHighlightsBtn" class="button button--secondary">Toggle Highlights</button>
+    <div class="switch">
+      <input class="switch__toggle" type="checkbox" id="toggleHighlightsSwitch">
+      <label class="switch__label" for="toggleHighlightsSwitch">Toggle Highlights</label>
+    </div>
   </div>
 
   <script>
@@ -237,7 +240,8 @@
     });
 
     // Toggle Tagged Frame Highlights button event.
-    document.getElementById('toggleHighlightsBtn').addEventListener('click', () => {
+    document.getElementById('toggleHighlightsSwitch').addEventListener('change', (e) => {
+      // The switch sends a toggle message when changed.
       parent.postMessage({ pluginMessage: { type: 'toggle-tag-highlights' } }, '*');
     });
 
