@@ -117,6 +117,19 @@
     </div>
   </div>
 
+  <!-- Section 5: Export -->
+  <div class="section" id="section-export">
+    <h2 class="section-title">Export</h2>
+    <div>
+      <label for="exportFormatSelect" class="type--small">Select Export Format:</label>
+      <select id="exportFormatSelect">
+        <option value="json" selected>JSON</option>
+        <option value="csv">CSV</option>
+      </select>
+    </div>
+    <button id="exportLinkedBtn" class="button button--secondary">Export Linked Personas</button>
+  </div>
+
   <script>
     let personas = [];
 
@@ -245,6 +258,13 @@
       parent.postMessage({ pluginMessage: { type: 'toggle-tag-highlights' } }, '*');
     });
 
+    document.getElementById('exportLinkedBtn').addEventListener('click', () => {
+      // For example, assume you have a select element with ID "exportFormatSelect" where the user can choose "json" or "csv".
+      const formatSelect = document.getElementById('exportFormatSelect');
+      const exportFormat = formatSelect ? formatSelect.value : "json";
+      parent.postMessage({ pluginMessage: { type: 'export-linked-personas', exportFormat } }, '*');
+    });
+
     window.onmessage = (event) => {
       const msg = event.data.pluginMessage;
       if (msg.type === 'update-linked-persona') {
@@ -293,6 +313,16 @@
       } else if (msg.type === 'update-highlights') {
         const btn = document.getElementById('toggleHighlightsBtn');
         btn.textContent = msg.show ? "Hide Highlights" : "Show Highlights";
+      } if (msg.type === "export-linked-personas-data") {
+        const blob = new Blob([msg.data], {
+          type: msg.exportFormat === "csv" ? 'text/csv' : 'application/json'
+        });
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = msg.exportFormat === "csv" ? "exported_linked_personas.csv" : "exported_linked_personas.json";
+        a.click();
+        URL.revokeObjectURL(url);
       }
     };
   </script>

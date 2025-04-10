@@ -94,6 +94,7 @@ figma.ui.onmessage = async (msg: {
   persona?: string;
   personaData?: { name: string; emoji?: string };
   personas?: any[];
+  exportFormat?: string;
 }) => {
   if (msg.type === "link-persona") {
     // Allow linking multiple frames.
@@ -224,5 +225,43 @@ figma.ui.onmessage = async (msg: {
       cleanupHighlights();
     }
     figma.ui.postMessage({ type: "update-highlights", show: showTaggedHighlights });
+  } else if (msg.type === "export-linked-personas") {
+    const exportData: { frameName: string; frameId: string; personas: string[] }[] = [];
+    const allFrames = figma.currentPage.findAll((node) => node.type === "FRAME") as FrameNode[];
+    allFrames.forEach(frame => {
+      const data = frame.getPluginData("persona");
+      if (data && data !== "") {
+        let linkedList: string[] = [];
+        try {
+          linkedList = JSON.parse(data);
+        } catch (err) {
+          linkedList = [];
+        }
+        if (Array.isArray(linkedList) && linkedList.length > 0) {
+          exportData.push({
+            frameName: frame.name,
+            frameId: frame.id,
+            personas: linkedList
+          });
+        }
+      }
+    });
+
+    // Build CSV string
+    let csvData = "Frame Name,Frame Id,Personas\n";
+    exportData.forEach(item => {
+      csvData += `"${item.frameName}","${item.frameId}","${item.personas.join(';')}"\n`;
+    });
+
+    // Build JSON string
+    const jsonData = JSON.stringify(exportData, null, 2);
+
+    // Determine export format, default to JSON if not specified.
+    const exportFormat = msg.exportFormat || "json";
+    if (exportFormat === "csv") {
+      figma.ui.postMessage({ type: "export-linked-personas-data", data: csvData, exportFormat: "csv" });
+    } else {
+      figma.ui.postMessage({ type: "export-linked-personas-data", data: jsonData, exportFormat: "json" });
+    }
   }
 };
