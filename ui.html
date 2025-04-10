@@ -2,45 +2,85 @@
 <html>
 
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Persona Linker</title>
+  <link rel="stylesheet" href="assets/figma-plugin-ds.min.css" />
   <style>
-    /* ... existing styles ... */
-    #linkedPersonaDisplay ul {
-      padding-left: 20px;
+    /* Custom container layout and spacing */
+    .section {
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e0e0e0;
     }
 
-    #linkedPersonaDisplay li {
-      margin-bottom: 4px;
+    .section:last-child {
+      border-bottom: none;
     }
 
-    #linkedPersonaDisplay button {
-      margin-left: 8px;
-      background: #d32f2f;
-      color: #fff;
-      border: none;
-      padding: 2px 6px;
-      cursor: pointer;
+    .persona-list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 10px;
+    }
+
+    .persona-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .persona-item:last-child {
+      border-bottom: none;
+    }
+
+    .persona-actions button {
+      margin-left: 5px;
+    }
+
+    .editForm {
+      margin-top: 8px;
     }
   </style>
 </head>
 
-<body>
-  <h2>Manage Personas</h2>
-  <div id="addPersona">
-    <input type="text" id="newPersonaName" placeholder="Name" />
-    <input type="text" id="newPersonaEmoji" placeholder="Emoji (optional)" />
-    <button id="addPersonaBtn">Add Persona</button>
+<body class="plugin-container">
+  <!-- Section 1: Add New Persona -->
+  <div class="section" id="section-add-new">
+    <h2 class="heading type--bold">Add New Persona</h2>
+    <div class="input-group">
+      <input type="text" id="newPersonaName" class="input input__field" placeholder="Name" />
+    </div>
+    <div class="input-group">
+      <input type="text" id="newPersonaEmoji" class="input input__field" placeholder="Emoji (optional)" />
+    </div>
+    <button id="addPersonaBtn" class="button button--primary">Add Persona</button>
   </div>
-  <h3>Existing Personas</h3>
-  <div id="personaList"></div>
-  <hr />
-  <h2>Link Persona to Selected Frame(s)</h2>
-  <!-- Updated linked persona display: will show list with unlink buttons -->
-  <div id="linkedPersonaDisplay">Linked Persona: None</div>
-  <!-- Removed the single Unlink Persona button -->
-  <!-- Toggle Tagged Frame Highlights Button -->
-  <button id="toggleHighlightsBtn">Toggle Tagged Frame Highlights</button>
+
+  <!-- Section 2: Persona List -->
+  <div class="section" id="section-persona-list">
+    <h2 class="heading type--bold">Persona List</h2>
+    <!-- Reserved slot for search input (non-functional) -->
+    <div class="input-group">
+      <input type="text" id="searchPersonas" class="input input__field" placeholder="Search personas" disabled />
+    </div>
+    <div id="personaList" class="persona-list"></div>
+  </div>
+
+  <!-- Section 3: Linked to Selected Frame(s) -->
+  <div class="section" id="section-linked">
+    <h2 class="heading type--bold">Linked to Selected Frame(s)</h2>
+    <div id="linkedPersonaDisplay" class="text-body">Linked Persona: None</div>
+  </div>
+
+  <!-- Section 4: Actions -->
+  <div class="section" id="section-actions">
+    <h2 class="heading type--bold">Actions</h2>
+    <button id="toggleHighlightsBtn" class="button button--secondary">Toggle Highlights</button>
+  </div>
 
   <script>
     let personas = [];
@@ -53,22 +93,26 @@
         personaDiv.className = 'persona-item';
         personaDiv.dataset.index = index;
         personaDiv.innerHTML = `
-            <span class="persona-text">${persona.emoji ? persona.emoji + ' ' : ''}${persona.name}</span>
-            <button class="linkPersonaBtn">Link</button>
-            <button class="editPersonaBtn">Edit</button>
-            <button class="deletePersonaBtn">Delete</button>
+            <div class="persona-details">
+              <span>${persona.emoji ? persona.emoji + ' ' : ''}${persona.name}</span>
+            </div>
+            <div class="persona-actions">
+              <button class="button button--primary linkPersonaBtn">Link</button>
+              <button class="button button--secondary editPersonaBtn">Edit</button>
+              <button class="button button--destructive deletePersonaBtn">Delete</button>
+            </div>
             <div class="editForm" style="display:none;">
-              <input type="text" class="editName" placeholder="Name" value="${persona.name}" />
-              <input type="text" class="editEmoji" placeholder="Emoji (optional)" value="${persona.emoji || ''}" />
-              <button class="saveEditBtn">Save</button>
-              <button class="cancelEditBtn">Cancel</button>
+              <input type="text" class="input input__field editName" placeholder="Name" value="${persona.name}" />
+              <input type="text" class="input input__field editEmoji" placeholder="Emoji (optional)" value="${persona.emoji || ''}" />
+              <button class="button button--primary saveEditBtn">Save</button>
+              <button class="button button--secondary cancelEditBtn">Cancel</button>
             </div>
           `;
         listEl.appendChild(personaDiv);
       });
       document.querySelectorAll('.linkPersonaBtn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-          const index = e.target.parentElement.dataset.index;
+          const index = e.target.parentElement.parentElement.dataset.index;
           const persona = personas[index];
           const personaStr = (persona.emoji ? persona.emoji + ' ' : '') + persona.name;
           parent.postMessage({ pluginMessage: { type: 'link-persona', persona: personaStr, personaData: persona } }, '*');
@@ -76,14 +120,14 @@
       });
       document.querySelectorAll('.deletePersonaBtn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-          const index = e.target.parentElement.dataset.index;
+          const index = e.target.parentElement.parentElement.dataset.index;
           personas.splice(index, 1);
           updatePersonas();
         });
       });
       document.querySelectorAll('.editPersonaBtn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-          const editForm = e.target.parentElement.querySelector('.editForm');
+          const editForm = e.target.parentElement.parentElement.querySelector('.editForm');
           editForm.style.display = 'block';
         });
       });
@@ -129,7 +173,7 @@
       updatePersonas();
     });
 
-    // Toggle Tagged Frame Highlights button.
+    // Toggle Tagged Frame Highlights button event.
     document.getElementById('toggleHighlightsBtn').addEventListener('click', () => {
       parent.postMessage({ pluginMessage: { type: 'toggle-tag-highlights' } }, '*');
     });
@@ -138,7 +182,7 @@
       const msg = event.data.pluginMessage;
       if (msg.type === 'update-linked-persona') {
         const display = document.getElementById('linkedPersonaDisplay');
-        display.innerHTML = ''; // Clear existing content
+        display.innerHTML = '';
         const linked = msg.personas;
         if (!linked || linked.length === 0) {
           display.textContent = "Linked Persona: None";
@@ -149,6 +193,7 @@
             listItem.textContent = persona + " ";
             const unlinkBtn = document.createElement('button');
             unlinkBtn.textContent = "Unlink";
+            unlinkBtn.className = "button button--destructive";
             unlinkBtn.addEventListener('click', () => {
               parent.postMessage({ pluginMessage: { type: 'unlink-persona', persona: persona } }, '*');
             });
@@ -165,7 +210,7 @@
         renderPersonaList();
       } else if (msg.type === 'update-highlights') {
         const btn = document.getElementById('toggleHighlightsBtn');
-        btn.textContent = msg.show ? "Hide Tagged Frame Highlights" : "Show Tagged Frame Highlights";
+        btn.textContent = msg.show ? "Hide Highlights" : "Show Highlights";
       }
     };
   </script>
