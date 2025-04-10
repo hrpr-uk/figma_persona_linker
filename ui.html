@@ -75,6 +75,13 @@
       align-items: center;
       margin-bottom: 4px;
     }
+
+    .export-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 
@@ -120,14 +127,16 @@
   <!-- Section 5: Export -->
   <div class="section" id="section-export">
     <h2 class="section-title">Export</h2>
-    <div>
-      <label for="exportFormatSelect" class="type--small">Select Export Format:</label>
-      <select id="exportFormatSelect">
-        <option value="json" selected>JSON</option>
-        <option value="csv">CSV</option>
-      </select>
+    <div class="export-actions">
+      <button id="exportLinkedBtn" class="button button--secondary">Export Linked Frames</button>
+      <div>
+        <label for="exportFormatSelect" class="type--small">Format:</label>
+        <select id="exportFormatSelect" class="">
+          <option value="json" selected>JSON</option>
+          <option value="csv">CSV</option>
+        </select>
+      </div>
     </div>
-    <button id="exportLinkedBtn" class="button button--secondary">Export Linked Personas</button>
   </div>
 
   <script>
