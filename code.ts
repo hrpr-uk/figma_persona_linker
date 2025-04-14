@@ -3,7 +3,7 @@ figma.showUI(__html__, { width: 300, height: 600 });
 
 // Global state for showing tag highlights and the current target persona.
 let showTaggedHighlights = false;
-let currentTargetPersona = ""; // Stores the persona that was last linked or unlinked
+let currentTargetPersona = ""; // Stores the persona id that was last linked or unlinked
 
 // Helper function to send the linked personas (as an array) from the selected frame.
 function sendLinkedPersona() {
@@ -27,7 +27,7 @@ function sendLinkedPersona() {
     selection.length === 1 && selection[0].type === "FRAME"
       ? (selection[0] as FrameNode).name
       : undefined;
-  // Send the linked personas array to the UI along with the frame name (if available).
+  // Send the linked personas array (persona ids) to the UI along with the frame name (if available).
   figma.ui.postMessage({ type: "update-linked-persona", personas: linkedPersonas, frameName });
 }
 
@@ -78,8 +78,8 @@ figma.on("selectionchange", () => {
 // Load shared personas on launch.
 let rawPersonas = figma.root.getSharedPluginData("persona_linker", "personas");
 let personas;
-// Add global state for storing the linked personas of the currently selected frame.
-let currentLinkedPersonas = null;
+// Global state for storing the linked personas of the currently selected frame.
+let currentLinkedPersonas: string[] | null = null;
 try {
   personas = JSON.parse(rawPersonas || "[]");
 } catch (e) {
@@ -91,8 +91,10 @@ figma.ui.postMessage({ type: "load-personas", personas });
 // Listen for messages from the UI.
 figma.ui.onmessage = async (msg: {
   type: string;
-  persona?: string;
-  personaData?: { name: string; emoji?: string };
+  personaId?: string;
+  personaName?: string;
+  personaAvatar?: string;
+  personaData?: { id: string; name: string; emoji?: string };
   personas?: any[];
   exportFormat?: string;
 }) => {
@@ -103,8 +105,8 @@ figma.ui.onmessage = async (msg: {
       figma.notify("Please select at least one frame first.");
       return;
     }
-    // Update the current target persona.
-    currentTargetPersona = msg.persona || "";
+    // Update the current target persona using the persona id.
+    currentTargetPersona = msg.personaId || "";
     let linkedCount = 0;
     for (const node of selection) {
       if (node.type === "FRAME") {
@@ -117,9 +119,9 @@ figma.ui.onmessage = async (msg: {
             linkedList = [];
           }
         }
-        // Append the persona if not already present.
-        if (linkedList.indexOf(msg.persona!) === -1) {
-          linkedList.push(msg.persona!);
+        // Append the persona id if not already present.
+        if (linkedList.indexOf(msg.personaId!) === -1) {
+          linkedList.push(msg.personaId!);
           node.setPluginData("persona", JSON.stringify(linkedList));
           linkedCount++;
         }
@@ -129,9 +131,8 @@ figma.ui.onmessage = async (msg: {
       figma.notify("No valid frames selected or persona already linked.");
       return;
     }
-    const summaryMsg = `${linkedCount} frame${linkedCount > 1 ? "s" : ""} linked to ${msg.persona}`;
+    const summaryMsg = `${linkedCount} frame${linkedCount > 1 ? "s" : ""} linked to ${msg.personaName}`;
     figma.notify(summaryMsg);
-    // Update the linkedPersonaDisplay by sending the updated linked personas.
     sendLinkedPersona();
     if (showTaggedHighlights) {
       highlightTaggedFrames();
@@ -158,8 +159,8 @@ figma.ui.onmessage = async (msg: {
     } catch (err) {
       linkedList = [];
     }
-    const targetPersona = msg.persona;
-    const index = linkedList.indexOf(targetPersona!);
+    const targetPersonaId = msg.personaId;
+    const index = linkedList.indexOf(targetPersonaId!);
     if (index === -1) {
       figma.notify("The persona is not linked to the selected frame.");
       return;
@@ -170,8 +171,7 @@ figma.ui.onmessage = async (msg: {
     } else {
       node.setPluginData("persona", JSON.stringify(linkedList));
     }
-    figma.notify(`Unlinked ${targetPersona} from the selected frame.`);
-    // Update the linkedPersonaDisplay with the updated list.
+    figma.notify(`Unlinked ${msg.personaName} from the selected frame.`);
     sendLinkedPersona();
     if (showTaggedHighlights) {
       highlightTaggedFrames();
@@ -182,10 +182,8 @@ figma.ui.onmessage = async (msg: {
       figma.root.setSharedPluginData("persona_linker", "personas", JSON.stringify(newPersonas));
       figma.ui.postMessage({ type: "load-personas", personas: newPersonas });
 
-      // Compute valid persona strings.
-      const validPersonaStrings = newPersonas.map(
-        (p) => (p.emoji ? p.emoji + " " : "") + p.name
-      );
+      // Compute valid persona IDs.
+      const validPersonaIds = newPersonas.map((p) => p.id);
       const frames = figma.currentPage.findAll(
         (node) => node.type === "FRAME"
       ) as FrameNode[];
@@ -198,8 +196,8 @@ figma.ui.onmessage = async (msg: {
           } catch (err) {
             linkedList = [];
           }
-          // Filter out any linked persona not in the valid list.
-          const filtered = linkedList.filter((p) => validPersonaStrings.indexOf(p) !== -1);
+          // Only keep persona ids that are still valid.
+          const filtered = linkedList.filter((p) => validPersonaIds.indexOf(p) !== -1);
           if (filtered.length === 0) {
             frame.setPluginData("persona", "");
           } else {
@@ -255,8 +253,6 @@ figma.ui.onmessage = async (msg: {
 
     // Build JSON string
     const jsonData = JSON.stringify(exportData, null, 2);
-
-    // Determine export format, default to JSON if not specified.
     const exportFormat = msg.exportFormat || "json";
     if (exportFormat === "csv") {
       figma.ui.postMessage({ type: "export-linked-personas-data", data: csvData, exportFormat: "csv" });

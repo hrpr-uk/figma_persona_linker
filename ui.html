@@ -31,7 +31,8 @@
 
     .persona-item {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-start;
       justify-content: space-between;
       padding: 5px 0;
       border-bottom: 1px solid #f0f0f0;
@@ -53,9 +54,7 @@
     .editForm {
       margin-top: 8px;
       width: 100%;
-      /* Span full width of the container */
       order: 1;
-      /* Ensure it appears below any flex-based siblings */
     }
 
     .linked-panel {
@@ -82,6 +81,58 @@
       align-items: center;
       margin-bottom: 4px;
     }
+
+    .color-picker-circle {
+      display: block;
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      min-height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+
+    .persona-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+
+    .fields {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+
+    .fields input {
+      width: auto;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      width: 100%;
+    }
+
+    .actions button {
+      margin-left: 5px;
+    }
+
+    .field-emoji {
+      max-width: 60px;
+    }
+
+    .persona-form {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
   </style>
 </head>
 
@@ -89,11 +140,17 @@
   <!-- Section 1: Add New Persona -->
   <div class="section" id="section-add-new">
     <h2 class="section-title">Add New Persona</h2>
-    <div class="input-group">
-      <input type="text" id="newPersonaName" class="input input__field" placeholder="Name" />
-    </div>
-    <div class="input-group">
-      <input type="text" id="newPersonaEmoji" class="input input__field" placeholder="Emoji (optional)" />
+    <div class="persona-form">
+      <div class="input-group">
+        <input type="text" id="newPersonaName" class="input input__field" placeholder="Name" />
+      </div>
+      <div class="input-group">
+        <input type="text" id="newPersonaEmoji" class="input input__field field-emoji" placeholder="Emoji (optional)" />
+      </div>
+      <div class="input-group">
+        <input type="color" id="newPersonaColor" class="input input__field editColor color-picker-circle"
+          title="Avatar colour" value="#F4D06F" />
+      </div>
     </div>
     <button id="addPersonaBtn" class="button button--primary">Add Persona</button>
   </div>
@@ -141,13 +198,69 @@
 
   <script>
     let personas = [];
+    let currentLinkedPersonas = null;
+
+    function getInitials(name) {
+      if (!name) return "";
+      const parts = name.trim().split(" ");
+      let initials = "";
+      for (let i = 0; i < parts.length && i < 2; i++) {
+        initials += parts[i].charAt(0);
+      }
+      return initials.toUpperCase();
+    }
+
+    // Renders the list of linked personas using the current global 'personas' array.
+    function renderLinkedPersonas() {
+      const display = document.getElementById('linkedPersonaDisplay');
+      display.innerHTML = '';
+      if (!currentLinkedPersonas || currentLinkedPersonas.length === 0) {
+        display.textContent = "Linked Persona: None";
+        display.className = 'type--small';
+        return;
+      }
+      currentLinkedPersonas.forEach(personaId => {
+        const row = document.createElement('div');
+        row.className = "linked-row";
+        const nameEl = document.createElement('div');
+        const linkedPersona = personas.find(p => p.id === personaId);
+        let displayHTML = personaId; // fallback
+        if (linkedPersona) {
+          let avatarHtml = "";
+          if (linkedPersona.emoji && linkedPersona.emoji.trim() !== "") {
+            avatarHtml = `<span>${linkedPersona.emoji}</span>`;
+          } else {
+            const avatarColor = linkedPersona.avatarColor || "#F4D06F";
+            const initials = getInitials(linkedPersona.name);
+            avatarHtml = `<div class="avatar" style="background-color: ${avatarColor}; display: inline-block; width: 32px; height: 32px; border-radius: 50%; text-align: center; line-height: 32px; font-weight: bold; color: #ffffff; margin-right: 8px;">${initials}</div>`;
+          }
+          displayHTML = avatarHtml + linkedPersona.name;
+        }
+        nameEl.innerHTML = displayHTML;
+        nameEl.className = "type--small";
+        const unlinkBtn = document.createElement('button');
+        unlinkBtn.textContent = "Unlink";
+        unlinkBtn.className = "button button--secondary-destructive";
+        unlinkBtn.addEventListener('click', () => {
+          parent.postMessage({
+            pluginMessage: {
+              type: 'unlink-persona',
+              personaId: personaId,
+              personaName: linkedPersona ? linkedPersona.name : personaId
+            }
+          }, '*');
+        });
+        row.appendChild(nameEl);
+        row.appendChild(unlinkBtn);
+        display.appendChild(row);
+      });
+    }
 
     function renderPersonaList() {
       const listEl = document.getElementById('personaList');
       listEl.innerHTML = '';
       const searchTerm = document.getElementById('searchPersonas').value.trim().toLowerCase();
 
-      // Filter and map personas along with their global index.
       const filteredPersonas = personas
         .map((persona, index) => ({ persona, index }))
         .filter(({ persona }) => {
@@ -161,54 +274,79 @@
         filteredPersonas.forEach(({ persona, index }) => {
           const personaDiv = document.createElement('div');
           personaDiv.className = 'persona-item';
-          // Use the global index so that actions work correctly.
           personaDiv.dataset.index = index;
-          const personaStr = (persona.emoji ? persona.emoji + ' ' : '') + persona.name;
-          // Determine if this persona is linked on the currently selected frame.
-          const isLinked = currentLinkedPersonas && currentLinkedPersonas.indexOf(personaStr) > -1;
-          // Show Unlink if linked, otherwise show Link.
+          let avatarHtml = "";
+          if (persona.emoji && persona.emoji.trim() !== "") {
+            avatarHtml = `<span>${persona.emoji}</span>`;
+          } else {
+            const avatarColor = persona.avatarColor || "#F4D06F";
+            const initials = getInitials(persona.name);
+            avatarHtml = `<div class="avatar" style="background-color: ${avatarColor}; display: inline-block; width: 32px; height: 32px; border-radius: 50%; text-align: center; line-height: 32px; font-weight: bold; color: #ffffff; margin-right: 8px;">${initials}</div>`;
+          }
+          const isLinked = currentLinkedPersonas && currentLinkedPersonas.indexOf(persona.id) > -1;
+          const personaStr = avatarHtml + persona.name;
           const actionButton = isLinked
             ? `<button class="button button--primary-destructive unlinkPersonaBtn">Unlink</button>`
             : `<button class="button button--primary linkPersonaBtn">Link</button>`;
           personaDiv.innerHTML = `
-            <div class="persona-details type--large">
-              <span>${personaStr}</span>
-            </div>
-            <div class="persona-actions">
-              ${actionButton}
-              <button class="button button--tertiary editPersonaBtn">Edit</button>
-              <button class="button button--tertiary-destructive deletePersonaBtn">Delete</button>
-            </div>
-            <div class="editForm" style="display:none;">
-              <input type="text" class="input input__field editName" placeholder="Name" value="${persona.name}" />
-              <input type="text" class="input input__field editEmoji" placeholder="Emoji (optional)" value="${persona.emoji || ''}" />
-              <button class="button button--primary saveEditBtn">Save</button>
-              <button class="button button--secondary cancelEditBtn">Cancel</button>
-            </div>
+              <div class="persona-summary">
+                <div class="persona-details type--large">
+                  <span>${personaStr}</span>
+                </div>
+                <div class="persona-actions">
+                  ${actionButton}
+                  <button class="button button--tertiary editPersonaBtn">Edit</button>
+                  <button class="button button--tertiary-destructive deletePersonaBtn">Delete</button>
+                </div>
+              </div>
+              <div class="editForm" style="display:none;">
+                <div class="fields">
+                  <input type="text" class="input input__field editName" placeholder="Name" value="${persona.name}" />
+                  <input type="text" class="input input__field field-emoji editEmoji" placeholder="Emoji (optional)" value="${persona.emoji || ''}" />
+                  <input type="color" class="input input__field editColor color-picker-circle" title="Avatar colour" value="${persona.avatarColor || '#F4D06F'}" />
+                </div>
+                <div class="actions">
+                  <button class="button button--tertiary saveEditBtn">Save</button>
+                  <button class="button button--tertiary-destructive cancelEditBtn">Cancel</button>
+                </div>
+              </div>
           `;
           listEl.appendChild(personaDiv);
 
-          // Attach the Link or Unlink button listener.
           if (isLinked) {
             const unlinkBtn = personaDiv.querySelector('.unlinkPersonaBtn');
             unlinkBtn.addEventListener('click', (e) => {
-              parent.postMessage({ pluginMessage: { type: 'unlink-persona', persona: personaStr } }, '*');
+              parent.postMessage({
+                pluginMessage: {
+                  type: 'unlink-persona',
+                  personaId: persona.id,
+                  personaName: persona.name,
+                  personaAvatar: avatarHtml
+                }
+              }, '*');
             });
           } else {
             const linkBtn = personaDiv.querySelector('.linkPersonaBtn');
             linkBtn.addEventListener('click', (e) => {
-              parent.postMessage({ pluginMessage: { type: 'link-persona', persona: personaStr, personaData: persona } }, '*');
+              parent.postMessage({
+                pluginMessage: {
+                  type: 'link-persona',
+                  personaId: persona.id,
+                  personaName: persona.name,
+                  personaAvatar: avatarHtml,
+                  personaData: persona
+                }
+              }, '*');
             });
           }
 
-          // Attach event listener for Edit action.
           const editBtn = personaDiv.querySelector('.editPersonaBtn');
           editBtn.addEventListener('click', (e) => {
-            const editForm = e.target.parentElement.parentElement.querySelector('.editForm');
+            const personaItem = e.target.closest('.persona-item');
+            const editForm = personaItem.querySelector('.editForm');
             editForm.style.display = 'block';
           });
 
-          // Attach event listeners for Cancel and Save edit actions.
           const cancelBtn = personaDiv.querySelector('.cancelEditBtn');
           cancelBtn.addEventListener('click', (e) => {
             const editForm = e.target.parentElement;
@@ -220,15 +358,15 @@
             const idx = personaItem.dataset.index;
             const newName = personaItem.querySelector('.editName').value.trim();
             const newEmoji = personaItem.querySelector('.editEmoji').value.trim();
+            const newColor = personaItem.querySelector('.editColor').value;
             if (newName === '') {
               alert('Name cannot be empty.');
               return;
             }
-            personas[idx] = { name: newName, emoji: newEmoji };
+            personas[idx] = { id: personas[idx].id, name: newName, emoji: newEmoji, avatarColor: newColor };
             updatePersonas();
           });
 
-          // Attach event listener for Delete action.
           const deleteBtn = personaDiv.querySelector('.deletePersonaBtn');
           deleteBtn.addEventListener('click', (e) => {
             const idx = personaDiv.dataset.index;
@@ -242,6 +380,9 @@
     function updatePersonas() {
       parent.postMessage({ pluginMessage: { type: 'update-personas', personas: personas } }, '*');
       renderPersonaList();
+      if (currentLinkedPersonas) {
+        renderLinkedPersonas();
+      }
     }
 
     document.getElementById('searchPersonas').addEventListener('input', renderPersonaList);
@@ -249,26 +390,31 @@
     document.getElementById('addPersonaBtn').addEventListener('click', () => {
       const nameInput = document.getElementById('newPersonaName');
       const emojiInput = document.getElementById('newPersonaEmoji');
+      const colorInput = document.getElementById('newPersonaColor');
       const name = nameInput.value.trim();
       const emoji = emojiInput.value.trim();
+      const avatarColor = colorInput.value;
       if (name === '') {
         alert("Name cannot be empty.");
         return;
       }
-      personas.push({ name: name, emoji: emoji });
+      const newPersona = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        name: name,
+        emoji: emoji,
+        avatarColor: avatarColor
+      };
+      personas.push(newPersona);
       nameInput.value = '';
       emojiInput.value = '';
       updatePersonas();
     });
 
-    // Toggle Tagged Frame Highlights button event.
     document.getElementById('toggleHighlightsSwitch').addEventListener('change', (e) => {
-      // The switch sends a toggle message when changed.
       parent.postMessage({ pluginMessage: { type: 'toggle-tag-highlights' } }, '*');
     });
 
     document.getElementById('exportLinkedBtn').addEventListener('click', () => {
-      // For example, assume you have a select element with ID "exportFormatSelect" where the user can choose "json" or "csv".
       const formatSelect = document.getElementById('exportFormatSelect');
       const exportFormat = formatSelect ? formatSelect.value : "json";
       parent.postMessage({ pluginMessage: { type: 'export-linked-personas', exportFormat } }, '*');
@@ -277,52 +423,29 @@
     window.onmessage = (event) => {
       const msg = event.data.pluginMessage;
       if (msg.type === 'update-linked-persona') {
-        // Update the global state for the currently selected frame’s linked personas.
         currentLinkedPersonas = msg.personas;
-        // Update header with the frame name (if provided) or fallback.
         const headerEl = document.getElementById('linkedHeader');
         if (msg.frameName) {
           headerEl.textContent = `Linked personas for: "${msg.frameName}"`;
         } else {
           headerEl.textContent = `Linked personas for selected frames`;
         }
-        const display = document.getElementById('linkedPersonaDisplay');
-        display.innerHTML = '';
-        if (!msg.personas || msg.personas.length === 0) {
-          display.textContent = "Linked Persona: None";
-        } else {
-          msg.personas.forEach(persona => {
-            const row = document.createElement('div');
-            row.className = "linked-row";
-
-            const nameEl = document.createElement('div');
-            nameEl.textContent = persona;
-            nameEl.className = "type--small";
-
-            const unlinkBtn = document.createElement('button');
-            unlinkBtn.textContent = "Unlink";
-            unlinkBtn.className = "button button--secondary-destructive";
-            unlinkBtn.addEventListener('click', () => {
-              parent.postMessage({ pluginMessage: { type: 'unlink-persona', persona: persona } }, '*');
-            });
-
-            row.appendChild(nameEl);
-            row.appendChild(unlinkBtn);
-            display.appendChild(row);
-          });
-        }
-        // Re-render the persona list so that the Link/Unlink buttons reflect the current frame's state.
+        renderLinkedPersonas();
         renderPersonaList();
       } else if (msg.type === 'link-summary') {
         const display = document.getElementById('linkedPersonaDisplay');
         display.textContent = msg.summary;
       } else if (msg.type === 'load-personas') {
-        personas = Array.isArray(msg.personas) ? msg.personas : [];
+        // Ensure every persona has an id; if not, generate one.
+        personas = Array.isArray(msg.personas) ? msg.personas.map(p => p.id ? p : { ...p, id: Date.now().toString() + Math.random().toString(36).substr(2, 5) }) : [];
         renderPersonaList();
+        if (currentLinkedPersonas) {
+          renderLinkedPersonas();
+        }
       } else if (msg.type === 'update-highlights') {
         const btn = document.getElementById('toggleHighlightsBtn');
         btn.textContent = msg.show ? "Hide Highlights" : "Show Highlights";
-      } if (msg.type === "export-linked-personas-data") {
+      } else if (msg.type === "export-linked-personas-data") {
         const blob = new Blob([msg.data], {
           type: msg.exportFormat === "csv" ? 'text/csv' : 'application/json'
         });
