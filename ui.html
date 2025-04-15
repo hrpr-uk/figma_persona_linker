@@ -12,8 +12,7 @@
     }
 
     .section {
-      margin-bottom: 20px;
-      padding-bottom: 10px;
+      padding: 0 0 20px 0;
       border-bottom: 1px solid #e0e0e0;
     }
 
@@ -36,6 +35,10 @@
       justify-content: space-between;
       padding: 5px 0;
       border-bottom: 1px solid #f0f0f0;
+    }
+
+    .persona-details span {
+      margin-right: 5px;
     }
 
     .persona-actions {
@@ -127,11 +130,33 @@
       max-width: 60px;
     }
 
-    .persona-form {
+    .persona-form,
+    .editForm .fields {
       display: flex;
-      justify-content: space-between;
+      justify-content: start;
       align-items: center;
       width: 100%;
+    }
+
+    .input-group {
+      display: flex;
+    }
+
+    .editForm .fields .input {
+      display: flex;
+      margin-left: 5px;
+      margin-bottom: 5px;
+      border: 1px solid var(--black1);
+    }
+
+    .persona-form .input-group {
+      margin-left: 5px;
+      margin-bottom: 5px;
+    }
+
+    .field-name,
+    .editName {
+      flex-grow: 1;
     }
   </style>
 </head>
@@ -142,14 +167,14 @@
     <h2 class="section-title">Add New Persona</h2>
     <div class="persona-form">
       <div class="input-group">
-        <input type="text" id="newPersonaName" class="input input__field" placeholder="Name" />
-      </div>
-      <div class="input-group">
-        <input type="text" id="newPersonaEmoji" class="input input__field field-emoji" placeholder="Emoji (optional)" />
+        <input type="text" id="newPersonaEmoji" class="input input__field field-emoji" placeholder="Emoji" />
       </div>
       <div class="input-group">
         <input type="color" id="newPersonaColor" class="input input__field editColor color-picker-circle"
           title="Avatar colour" value="#F4D06F" />
+      </div>
+      <div class="input-group field-name">
+        <input type="text" id="newPersonaName" class="input input__field" placeholder="Name" />
       </div>
     </div>
     <button id="addPersonaBtn" class="button button--primary">Add Persona</button>
@@ -181,9 +206,9 @@
     </div>
   </div>
 
-  <!-- Section 5: Export -->
+  <!-- Section 5: Import/Export -->
   <div class="section" id="section-export">
-    <h2 class="section-title">Export</h2>
+    <h2 class="section-title">Import/Export</h2>
     <div class="export-actions">
       <button id="exportLinkedBtn" class="button button--secondary">Export Linked Frames</button>
       <div>
@@ -194,6 +219,14 @@
         </select>
       </div>
     </div>
+    <!-- New row with Import and Download buttons -->
+    <div class="export-actions" style="margin-top:10px;">
+      <button id="importPersonasBtn" class="button button--secondary">Import Personas</button>
+      <button id="downloadSampleJsonBtn" class="button button--tertiary" style="margin-left:10px;">Download
+        sample</button>
+    </div>
+    <!-- Hidden file input for importing personas -->
+    <input type="file" id="importPersonasInput" accept=".json" style="display:none;" />
   </div>
 
   <script>
@@ -208,6 +241,11 @@
         initials += parts[i].charAt(0);
       }
       return initials.toUpperCase();
+    }
+
+    // Generates a random hex color
+    function generateRandomColor() {
+      return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
     }
 
     // Renders the list of linked personas using the current global 'personas' array.
@@ -269,7 +307,7 @@
         });
 
       if (filteredPersonas.length === 0) {
-        listEl.innerHTML = '<div class="no-results">No results</div>';
+        listEl.innerHTML = '<div class="no-results type--small">No results</div>';
       } else {
         filteredPersonas.forEach(({ persona, index }) => {
           const personaDiv = document.createElement('div');
@@ -301,9 +339,9 @@
               </div>
               <div class="editForm" style="display:none;">
                 <div class="fields">
-                  <input type="text" class="input input__field editName" placeholder="Name" value="${persona.name}" />
                   <input type="text" class="input input__field field-emoji editEmoji" placeholder="Emoji (optional)" value="${persona.emoji || ''}" />
                   <input type="color" class="input input__field editColor color-picker-circle" title="Avatar colour" value="${persona.avatarColor || '#F4D06F'}" />
+                  <input type="text" class="input input__field editName" placeholder="Name" value="${persona.name}" />
                 </div>
                 <div class="actions">
                   <button class="button button--tertiary saveEditBtn">Save</button>
@@ -384,6 +422,93 @@
         renderLinkedPersonas();
       }
     }
+
+    // Import Personas function
+    function handleImportPersonas(files) {
+      if (!files || files.length === 0) return;
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        let imported;
+        try {
+          imported = JSON.parse(event.target.result);
+        } catch (err) {
+          alert("Failed to parse JSON file.");
+          return;
+        }
+        if (!Array.isArray(imported)) {
+          alert("Invalid file format. Expected an array of persona objects.");
+          return;
+        }
+        let newCount = 0, skippedCount = 0;
+        // For each imported persona, ensure required fields exist and match by name (case-insensitive)
+        imported.forEach(p => {
+          if (!p.name) return; // skip objects without a name
+          // Check for duplicate name in existing personas (case-insensitive)
+          const exists = personas.some(existing => existing.name.toLowerCase() === p.name.toLowerCase());
+          if (exists) {
+            skippedCount++;
+          } else {
+            // If an id is not provided, generate one.
+            if (!p.id) {
+              p.id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+            }
+            // If avatarColor is not provided, generate a random color.
+            if (!p.avatarColor) {
+              p.avatarColor = generateRandomColor();
+            }
+            personas.push(p);
+            newCount++;
+          }
+        });
+        updatePersonas();
+        alert(`${newCount} new persona(s) added, ${skippedCount} skipped due to name match.`);
+      };
+      reader.readAsText(file);
+    }
+
+    // Event listener for Import Personas button
+    document.getElementById('importPersonasBtn').addEventListener('click', () => {
+      document.getElementById('importPersonasInput').click();
+    });
+
+    // Event listener for Download Sample JSON button
+    document.getElementById('downloadSampleJsonBtn').addEventListener('click', () => {
+      const samplePersonas = [
+        {
+          id: "sample1",
+          name: "John Doe",
+          role: "Developer",
+          emoji: "👨‍💻",
+          avatarColor: "#4287f5",
+          description: "A sample developer persona.",
+          tags: ["frontend", "javascript"]
+        },
+        {
+          id: "sample2",
+          name: "Jane Smith",
+          role: "Designer",
+          emoji: "🎨",
+          avatarColor: "#f54291",
+          description: "A sample designer persona.",
+          tags: ["UI", "UX"]
+        }
+      ];
+      const blob = new Blob([JSON.stringify(samplePersonas, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = "sample-personas.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Event listener for file input changes
+    document.getElementById('importPersonasInput').addEventListener('change', (e) => {
+      handleImportPersonas(e.target.files);
+      // Reset file input so that the same file can be selected again if needed.
+      e.target.value = "";
+    });
 
     document.getElementById('searchPersonas').addEventListener('input', renderPersonaList);
 
