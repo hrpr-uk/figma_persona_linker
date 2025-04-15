@@ -12,8 +12,7 @@
     }
 
     .section {
-      margin-bottom: 20px;
-      padding-bottom: 10px;
+      padding: 0 0 20px 0;
       border-bottom: 1px solid #e0e0e0;
     }
 
@@ -36,6 +35,10 @@
       justify-content: space-between;
       padding: 5px 0;
       border-bottom: 1px solid #f0f0f0;
+    }
+
+    .persona-details span {
+      margin-right: 5px;
     }
 
     .persona-actions {
@@ -127,11 +130,33 @@
       max-width: 60px;
     }
 
-    .persona-form {
+    .persona-form,
+    .editForm .fields {
       display: flex;
-      justify-content: space-between;
+      justify-content: start;
       align-items: center;
       width: 100%;
+    }
+
+    .input-group {
+      display: flex;
+    }
+
+    .editForm .fields .input {
+      display: flex;
+      margin-left: 5px;
+      margin-bottom: 5px;
+      border: 1px solid var(--black1);
+    }
+
+    .persona-form .input-group {
+      margin-left: 5px;
+      margin-bottom: 5px;
+    }
+
+    .field-name,
+    .editName {
+      flex-grow: 1;
     }
   </style>
 </head>
@@ -142,14 +167,14 @@
     <h2 class="section-title">Add New Persona</h2>
     <div class="persona-form">
       <div class="input-group">
-        <input type="text" id="newPersonaName" class="input input__field" placeholder="Name" />
-      </div>
-      <div class="input-group">
-        <input type="text" id="newPersonaEmoji" class="input input__field field-emoji" placeholder="Emoji (optional)" />
+        <input type="text" id="newPersonaEmoji" class="input input__field field-emoji" placeholder="Emoji" />
       </div>
       <div class="input-group">
         <input type="color" id="newPersonaColor" class="input input__field editColor color-picker-circle"
           title="Avatar colour" value="#F4D06F" />
+      </div>
+      <div class="input-group field-name">
+        <input type="text" id="newPersonaName" class="input input__field" placeholder="Name" />
       </div>
     </div>
     <button id="addPersonaBtn" class="button button--primary">Add Persona</button>
@@ -197,8 +222,8 @@
     <!-- New row with Import and Download buttons -->
     <div class="export-actions" style="margin-top:10px;">
       <button id="importPersonasBtn" class="button button--secondary">Import Personas</button>
-      <button id="downloadSampleJsonBtn" class="button button--tertiary" style="margin-left:10px;">Download sample
-        persona.json</button>
+      <button id="downloadSampleJsonBtn" class="button button--tertiary" style="margin-left:10px;">Download
+        sample</button>
     </div>
     <!-- Hidden file input for importing personas -->
     <input type="file" id="importPersonasInput" accept=".json" style="display:none;" />
@@ -282,7 +307,7 @@
         });
 
       if (filteredPersonas.length === 0) {
-        listEl.innerHTML = '<div class="no-results">No results</div>';
+        listEl.innerHTML = '<div class="no-results type--small">No results</div>';
       } else {
         filteredPersonas.forEach(({ persona, index }) => {
           const personaDiv = document.createElement('div');
@@ -314,9 +339,9 @@
               </div>
               <div class="editForm" style="display:none;">
                 <div class="fields">
-                  <input type="text" class="input input__field editName" placeholder="Name" value="${persona.name}" />
                   <input type="text" class="input input__field field-emoji editEmoji" placeholder="Emoji (optional)" value="${persona.emoji || ''}" />
                   <input type="color" class="input input__field editColor color-picker-circle" title="Avatar colour" value="${persona.avatarColor || '#F4D06F'}" />
+                  <input type="text" class="input input__field editName" placeholder="Name" value="${persona.name}" />
                 </div>
                 <div class="actions">
                   <button class="button button--tertiary saveEditBtn">Save</button>
