@@ -1,40 +1,105 @@
-Below are the steps to get your plugin running. You can also find instructions at:
+# Persona Linker – Figma Plugin
 
-  https://www.figma.com/plugin-docs/plugin-quickstart-guide/
+A lightweight development plugin for linking personas directly to frames, components, and instances in Figma. Keeps your design aligned with real users – inside the tool you already work in.
 
-This plugin template uses Typescript and NPM, two standard tools in creating JavaScript applications.
+---
 
-First, download Node.js which comes with NPM. This will allow you to install TypeScript and other
-libraries. You can find the download link here:
+## ✨ What it does
 
-  https://nodejs.org/en/download/
+- Create and edit personas with emoji or coloured avatar initials  
+- Link one or more personas to selected elements  
+- Highlight all elements linked to a selected persona  
+- Import/export personas and linked frame data  
+- Search and filter personas in the UI  
 
-Next, install TypeScript using the command:
+---
 
-  npm install -g typescript
+## 🚧 This is a work in progress
 
-Finally, in the directory of your plugin, get the latest type definitions for the plugin API by running:
+The plugin is not yet published on the Figma Community. To try it out, you’ll need to run it as a **local development plugin** using the steps below.
 
-  npm install --save-dev @figma/plugin-typings
+---
 
-If you are familiar with JavaScript, TypeScript will look very familiar. In fact, valid JavaScript code
-is already valid Typescript code.
+## 🛠 Getting started
 
-TypeScript adds type annotations to variables. This allows code editors such as Visual Studio Code
-to provide information about the Figma API while you are writing code, as well as help catch bugs
-you previously didn't notice.
+### 1. Clone the repository
 
-For more information, visit https://www.typescriptlang.org/
+```bash
+git clone https://github.com/yourusername/persona-linker.git
+cd persona-linker
+npm install
+```
 
-Using TypeScript requires a compiler to convert TypeScript (code.ts) into JavaScript (code.js)
-for the browser to run.
+### 2. Build or run in development mode
 
-We recommend writing TypeScript code using Visual Studio code:
+```bash
+npm run dev       # for local dev
+npm run build     # to generate production-ready /dist files
+```
 
-1. Download Visual Studio Code if you haven't already: https://code.visualstudio.com/.
-2. Open this directory in Visual Studio Code.
-3. Compile TypeScript to JavaScript: Run the "Terminal > Run Build Task..." menu item,
-    then select "npm: watch". You will have to do this again every time
-    you reopen Visual Studio Code.
+### 3. Load into Figma
 
-That's it! Visual Studio Code will regenerate the JavaScript file every time you save.
+- Open the **Figma desktop app**
+- Go to `Menu → Plugins → Development → Import plugin from manifest…`
+- Navigate to the plugin folder and select the `manifest.json` file
+
+You’ll now see the plugin listed under `Plugins → Development → Persona Linker`.
+
+---
+
+## 🧪 Current features
+
+- ✅ Persona creation, editing and deletion  
+- ✅ Link/unlink multiple personas to frames, components, instances  
+- ✅ Visual highlights for linked elements (where supported)  
+- ✅ Import personas from `.json`  
+- ✅ Export frame–persona links as `.json` or `.csv`  
+- ✅ Search and filter personas in the UI  
+- ✅ Colour avatar initials fallback when no emoji  
+
+---
+
+## 📁 Sample persona data
+
+Click **“Download sample persona.json”** in the plugin or use:
+
+```json
+[
+  {
+    "id": "alex-admin",
+    "name": "Alex",
+    "role": "Admin",
+    "emoji": "🧑‍💼",
+    "avatarColor": "#FFD580",
+    "description": "Manages content and user permissions",
+    "tags": ["internal", "B2B"]
+  }
+]
+```
+
+---
+
+## 🧩 Built with
+
+- Figma Plugin API  
+- TypeScript  
+- figma-plugin-ds (local CSS version)
+
+---
+
+## 📄 License
+
+MIT – use it, modify it, extend it.
+
+---
+
+## 📝 Blog
+
+Read more about the design thinking behind the plugin:  
+**[Blog post → coming soon]**
+
+---
+
+## 🧠 Created by [hrpr](https://www.hrpr.co.uk)
+
+We build digital products, services and tools – and occasionally plugins like this – to make our work (and yours) easier, clearer, and more user-centred.
