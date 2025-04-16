@@ -93,19 +93,20 @@ figma.ui.onmessage = (msg) => {
 // When the selection changes, update the UI with information on the linked personas.
 figma.on("selectionchange", () => {
   const nodes = getAllowedNodesFromSelection();
-  const linkedNodeSummary = nodes.map(node => {
+  let linkedIds: string[] = [];
+  nodes.forEach(node => {
     const pluginData = node.getPluginData("personaIds");
-    let personaIds = [];
     if (pluginData) {
       try {
-        personaIds = JSON.parse(pluginData);
-      } catch (e) { }
+        const ids: string[] = JSON.parse(pluginData);
+        linkedIds = linkedIds.concat(ids);
+      } catch (e) {
+        // Ignore parsing error
+      }
     }
-    let label = node.name;
-    if (node.type !== "FRAME") {
-      label += ` (${node.type.charAt(0) + node.type.slice(1).toLowerCase()})`;
-    }
-    return { name: label, personaIds };
   });
-  figma.ui.postMessage({ type: "update-linked-persona", linkedNodes: linkedNodeSummary });
+  // Remove duplicate IDs
+  linkedIds = linkedIds.filter((id, index) => linkedIds.indexOf(id) === index);
+  // Send the union array of persona IDs to the UI.
+  figma.ui.postMessage({ type: "update-linked-persona", personas: linkedIds });
 });
