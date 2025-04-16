@@ -1,263 +1,111 @@
-// Show the plugin UI with an updated size and allow resizing.
-figma.showUI(__html__, { width: 300, height: 600 });
+// Show the UI window
+figma.showUI(__html__, { width: 400, height: 600 });
 
-// Global state for showing tag highlights and the current target persona.
-let showTaggedHighlights = false;
-let currentTargetPersona = ""; // Stores the persona id that was last linked or unlinked
+// Allowed node types for linking
+const allowedTypes = new Set(["FRAME", "COMPONENT", "INSTANCE"]);
 
-// Helper function to send the linked personas (as an array) from the selected frame.
-function sendLinkedPersona() {
-  const selection = figma.currentPage.selection;
-  let linkedPersonas: string[] = [];
-  if (selection.length > 0 && selection[0].type === "FRAME") {
-    const node = selection[0] as FrameNode;
-    const data = node.getPluginData("persona");
-    if (data) {
-      try {
-        const arr = JSON.parse(data);
-        if (Array.isArray(arr)) {
-          linkedPersonas = arr;
-        }
-      } catch (err) {
-        console.error("Error parsing linked personas", err);
-      }
-    }
-  }
-  const frameName =
-    selection.length === 1 && selection[0].type === "FRAME"
-      ? (selection[0] as FrameNode).name
-      : undefined;
-  // Send the linked personas array (persona ids) to the UI along with the frame name (if available).
-  figma.ui.postMessage({ type: "update-linked-persona", personas: linkedPersonas, frameName });
+// Returns only nodes from the current selection that are frames, components, or instances.
+function getAllowedNodesFromSelection() {
+  return figma.currentPage.selection.filter(node => allowedTypes.has(node.type));
 }
 
-// Highlight frames that have been tagged with the current target persona.
-function highlightTaggedFrames() {
-  const frames = figma.currentPage.findAll(
-    (node) => node.type === "FRAME"
-  ) as FrameNode[];
-  for (const frame of frames) {
-    const data = frame.getPluginData("persona");
-    let linkedList: string[] = [];
-    if (data) {
-      try {
-        linkedList = JSON.parse(data);
-      } catch (err) {
-        linkedList = [];
-      }
-    }
-    if (linkedList.length > 0) {
-      frame.strokes = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 } }];
-      frame.strokeWeight = 4;
-    } else {
-      frame.strokes = [];
-      frame.strokeWeight = 0;
-    }
-  }
-}
-
-// Cleanup function that clears strokes from all frames.
-function cleanupHighlights() {
-  const frames = figma.currentPage.findAll(
-    (node) => node.type === "FRAME"
-  ) as FrameNode[];
-  for (const frame of frames) {
-    frame.strokes = [];
-    frame.strokeWeight = 0;
-  }
-}
-
-// Send an initial update of linked personas.
-sendLinkedPersona();
-
-// Listen for selection changes to update the linked persona display.
-figma.on("selectionchange", () => {
-  sendLinkedPersona();
-});
-
-// Load shared personas on launch.
-let rawPersonas = figma.root.getSharedPluginData("persona_linker", "personas");
-let personas;
-// Global state for storing the linked personas of the currently selected frame.
-let currentLinkedPersonas: string[] | null = null;
-try {
-  personas = JSON.parse(rawPersonas || "[]");
-} catch (e) {
-  personas = [];
-  console.error("Failed to parse shared personas:", e);
-}
-figma.ui.postMessage({ type: "load-personas", personas });
-
-// Listen for messages from the UI.
-figma.ui.onmessage = async (msg: {
-  type: string;
-  personaId?: string;
-  personaName?: string;
-  personaAvatar?: string;
-  personaData?: { id: string; name: string; emoji?: string };
-  personas?: any[];
-  exportFormat?: string;
-}) => {
-  if (msg.type === "link-persona") {
-    // Allow linking multiple frames.
-    const selection = figma.currentPage.selection;
-    if (selection.length === 0) {
-      figma.notify("Please select at least one frame first.");
-      return;
-    }
-    // Update the current target persona using the persona id.
-    currentTargetPersona = msg.personaId || "";
-    let linkedCount = 0;
-    for (const node of selection) {
-      if (node.type === "FRAME") {
-        const data = node.getPluginData("persona");
-        let linkedList: string[] = [];
-        if (data) {
-          try {
-            linkedList = JSON.parse(data);
-          } catch (err) {
-            linkedList = [];
-          }
-        }
-        // Append the persona id if not already present.
-        if (linkedList.indexOf(msg.personaId!) === -1) {
-          linkedList.push(msg.personaId!);
-          node.setPluginData("persona", JSON.stringify(linkedList));
-          linkedCount++;
-        }
-      }
-    }
-    if (linkedCount === 0) {
-      figma.notify("No valid frames selected or persona already linked.");
-      return;
-    }
-    const summaryMsg = `${linkedCount} frame${linkedCount > 1 ? "s" : ""} linked to ${msg.personaName}`;
-    figma.notify(summaryMsg);
-    sendLinkedPersona();
-    if (showTaggedHighlights) {
-      highlightTaggedFrames();
-    }
-  } else if (msg.type === "unlink-persona") {
-    // Unlink logic: remove only the persona specified in the message.
-    if (figma.currentPage.selection.length === 0) {
-      figma.notify("Please select a frame first.");
-      return;
-    }
-    const node = figma.currentPage.selection[0];
-    if (node.type !== "FRAME") {
-      figma.notify("Selected object is not a frame.");
-      return;
-    }
-    const data = node.getPluginData("persona");
-    if (!data) {
-      figma.notify("No persona is linked to the selected frame.");
-      return;
-    }
-    let linkedList: string[] = [];
+// Updates the linked persona IDs on a given node.
+// If link is true then the personaId is added; otherwise, it is removed.
+function updateLinkedPersonasForNode(node: SceneNode, personaId: string, link: boolean) {
+  let personaIds: string[] = [];
+  const existing = node.getPluginData("personaIds");
+  if (existing) {
     try {
-      linkedList = JSON.parse(data);
-    } catch (err) {
-      linkedList = [];
-    }
-    const targetPersonaId = msg.personaId;
-    const index = linkedList.indexOf(targetPersonaId!);
-    if (index === -1) {
-      figma.notify("The persona is not linked to the selected frame.");
-      return;
-    }
-    linkedList.splice(index, 1);
-    if (linkedList.length === 0) {
-      node.setPluginData("persona", "");
-    } else {
-      node.setPluginData("persona", JSON.stringify(linkedList));
-    }
-    figma.notify(`Unlinked ${msg.personaName} from the selected frame.`);
-    sendLinkedPersona();
-    if (showTaggedHighlights) {
-      highlightTaggedFrames();
-    }
-  } else if (msg.type === "update-personas") {
-    try {
-      const newPersonas = msg.personas || [];
-      figma.root.setSharedPluginData("persona_linker", "personas", JSON.stringify(newPersonas));
-      figma.ui.postMessage({ type: "load-personas", personas: newPersonas });
-
-      // Compute valid persona IDs.
-      const validPersonaIds = newPersonas.map((p) => p.id);
-      const frames = figma.currentPage.findAll(
-        (node) => node.type === "FRAME"
-      ) as FrameNode[];
-      for (const frame of frames) {
-        const data = frame.getPluginData("persona");
-        if (data) {
-          let linkedList: string[] = [];
-          try {
-            linkedList = JSON.parse(data);
-          } catch (err) {
-            linkedList = [];
-          }
-          // Only keep persona ids that are still valid.
-          const filtered = linkedList.filter((p) => validPersonaIds.indexOf(p) !== -1);
-          if (filtered.length === 0) {
-            frame.setPluginData("persona", "");
-          } else {
-            frame.setPluginData("persona", JSON.stringify(filtered));
-          }
-        }
-      }
-      sendLinkedPersona();
-      if (showTaggedHighlights) {
-        highlightTaggedFrames();
-      } else {
-        cleanupHighlights();
-      }
+      personaIds = JSON.parse(existing);
     } catch (e) {
-      figma.notify("Failed to update personas");
-      console.error(e);
+      personaIds = [];
     }
-  } else if (msg.type === "toggle-tag-highlights") {
-    showTaggedHighlights = !showTaggedHighlights;
-    if (showTaggedHighlights) {
-      highlightTaggedFrames();
-    } else {
-      cleanupHighlights();
+  }
+  if (link) {
+    // Add the persona id if not already linked
+    if (personaIds.indexOf(personaId) === -1) {
+      personaIds.push(personaId);
     }
-    figma.ui.postMessage({ type: "update-highlights", show: showTaggedHighlights });
+  } else {
+    // Remove the persona id if linked
+    personaIds = personaIds.filter(id => id !== personaId);
+  }
+  node.setPluginData("personaIds", JSON.stringify(personaIds));
+}
+
+figma.ui.onmessage = (msg) => {
+  if (msg.type === "link-persona") {
+    // Link persona: for every allowed selected node, add the persona id.
+    const nodes = getAllowedNodesFromSelection();
+    nodes.forEach(node => {
+      updateLinkedPersonasForNode(node, msg.personaId, true);
+    });
+    figma.notify(`Linked persona ${msg.personaName} to ${nodes.length} node(s).`);
+
+  } else if (msg.type === "unlink-persona") {
+    // Unlink persona: for every allowed selected node, remove the persona id.
+    const nodes = getAllowedNodesFromSelection();
+    nodes.forEach(node => {
+      updateLinkedPersonasForNode(node, msg.personaId, false);
+    });
+    figma.notify(`Unlinked persona ${msg.personaName} from ${nodes.length} node(s).`);
+
   } else if (msg.type === "export-linked-personas") {
-    const exportData: { frameName: string; frameId: string; personas: string[] }[] = [];
-    const allFrames = figma.currentPage.findAll((node) => node.type === "FRAME") as FrameNode[];
-    allFrames.forEach(frame => {
-      const data = frame.getPluginData("persona");
-      if (data && data !== "") {
-        let linkedList: string[] = [];
+    // Export: include frames, components, and instances that have plugin data.
+    const nodes = getAllowedNodesFromSelection();
+    const exportData = nodes.map(node => {
+      const pluginData = node.getPluginData("personaIds");
+      if (pluginData) {
+        let personaIds = [];
         try {
-          linkedList = JSON.parse(data);
-        } catch (err) {
-          linkedList = [];
+          personaIds = JSON.parse(pluginData);
+        } catch (e) { }
+        // For non-frame nodes, append the node type to the name.
+        let label = node.name;
+        if (node.type !== "FRAME") {
+          // Convert type (e.g. COMPONENT, INSTANCE) to title case.
+          label += ` (${node.type.charAt(0) + node.type.slice(1).toLowerCase()})`;
         }
-        if (Array.isArray(linkedList) && linkedList.length > 0) {
-          exportData.push({
-            frameName: frame.name,
-            frameId: frame.id,
-            personas: linkedList
-          });
-        }
+        return { name: label, personaIds: personaIds };
       }
+      return null;
+    }).filter(item => item !== null);
+    figma.ui.postMessage({
+      type: "export-linked-personas-data",
+      data: JSON.stringify(exportData, null, 2),
+      exportFormat: msg.exportFormat,
     });
 
-    // Build CSV string
-    let csvData = "Frame Name,Frame Id,Personas\n";
-    exportData.forEach(item => {
-      csvData += `"${item.frameName}","${item.frameId}","${item.personas.join(';')}"\n`;
+  } else if (msg.type === "toggle-tag-highlights") {
+    // Apply highlight effects to all allowed nodes.
+    const nodes = getAllowedNodesFromSelection();
+    nodes.forEach(node => {
+      // Custom logic for highlights can be added here.
     });
 
-    // Build JSON string
-    const jsonData = JSON.stringify(exportData, null, 2);
-    const exportFormat = msg.exportFormat || "json";
-    if (exportFormat === "csv") {
-      figma.ui.postMessage({ type: "export-linked-personas-data", data: csvData, exportFormat: "csv" });
-    } else {
-      figma.ui.postMessage({ type: "export-linked-personas-data", data: jsonData, exportFormat: "json" });
-    }
+  } else if (msg.type === "update-personas") {
+    // Optionally handle global persona updates.
+    figma.ui.postMessage({ type: "personas-updated", personas: msg.personas });
   }
 };
+
+// Listen for selection changes.
+// When the selection changes, update the UI with information on the linked personas.
+figma.on("selectionchange", () => {
+  const nodes = getAllowedNodesFromSelection();
+  const linkedNodeSummary = nodes.map(node => {
+    const pluginData = node.getPluginData("personaIds");
+    let personaIds = [];
+    if (pluginData) {
+      try {
+        personaIds = JSON.parse(pluginData);
+      } catch (e) { }
+    }
+    let label = node.name;
+    if (node.type !== "FRAME") {
+      label += ` (${node.type.charAt(0) + node.type.slice(1).toLowerCase()})`;
+    }
+    return { name: label, personaIds };
+  });
+  figma.ui.postMessage({ type: "update-linked-persona", linkedNodes: linkedNodeSummary });
+});
