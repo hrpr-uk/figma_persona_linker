@@ -26,7 +26,7 @@ The plugin is not yet published on the Figma Community. To try it out, you’ll 
 
 ```bash
 git clone https://github.com/yourusername/persona-linker.git
-cd persona-linker
+cd figma_persona_linker
 npm install
 ```
 
@@ -96,7 +96,7 @@ MIT – use it, modify it, extend it.
 ## 📝 Blog
 
 Read more about the design thinking behind the plugin:  
-**[Blog post → coming soon]**
+[Blog post → Building a Figma plugin to solve a UX problem](https://www.hrpr.co.uk/blog/post/building-figma-plugin-solve-ux-problem)
 
 ---
 
